@@ -1,25 +1,105 @@
 # UART Transmitter in Verilog
 
-This project implements a **UART (Universal Asynchronous Receiver/Transmitter) transmitter** using Verilog HDL.
-The design sends an **8-bit data frame** over a serial line following the standard UART protocol.
+## Overview
 
-The project also includes a **testbench for simulation** and **waveform verification using GTKWave**.
+This project implements a **UART (Universal Asynchronous Receiver Transmitter) Transmitter** using Verilog HDL.
+The design is based on a **Finite State Machine (FSM)** that serializes an 8-bit parallel input and transmits it through a UART serial interface.
+
+The transmitter follows the standard UART frame format with:
+
+* **1 Start bit**
+* **8 Data bits (LSB first)**
+* **1 Stop bit**
+
+The design has been verified using **Icarus Verilog** for simulation and **GTKWave** for waveform visualization.
 
 ---
 
-# Project Structure
+## Features
+
+* FSM-based UART transmitter
+* Parameterizable baud rate using `CLKS_PER_BIT`
+* 8-bit parallel-to-serial data transmission
+* Start bit and stop bit handling
+* Simulation testbench included
+* Verified waveform output
+
+---
+
+## UART Frame Format
+
+| Idle | Start Bit | Data Bits (8-bit) | Stop Bit |
+| ---- | --------- | ----------------- | -------- |
+| 1    | 0         | LSB first         | 1        |
+
+Example transmission for byte `0x3F`:
+
+```
+Idle  Start   Data Bits (LSB first)      Stop
+ 1      0      1 1 1 1 1 1 0 0             1
+```
+
+---
+
+## Block Diagram
+
+```
+        +------------------+
+data -->|                  |
+start ->|     UART TX      |--> tx_serial
+clock ->|                  |
+        +------------------+
+```
+
+The transmitter converts parallel input data into a serial UART stream.
+
+---
+
+## Finite State Machine
+
+The UART transmitter is implemented using a **Finite State Machine (FSM)** with the following states:
+
+```
+IDLE
+ ↓
+START_BIT
+ ↓
+DATA_BITS
+ ↓
+STOP_BIT
+ ↓
+CLEANUP
+ ↓
+IDLE
+```
+
+### State Description
+
+| State     | Description                             |
+| --------- | --------------------------------------- |
+| IDLE      | Wait for data valid signal              |
+| START_BIT | Send UART start bit (`0`)               |
+| DATA_BITS | Transmit 8 data bits (LSB first)        |
+| STOP_BIT  | Send stop bit (`1`)                     |
+| CLEANUP   | Reset internal flags and return to IDLE |
+
+---
+
+## Project Structure
 
 ```
 uart-verilog
 │
 ├── src
-│   └── uart_tx.v        # UART transmitter RTL design
+│   └── uart_tx.v          # UART transmitter RTL
 │
 ├── tb
-│   └── uart_tb.v        # Testbench for simulation
+│   └── uart_tb.v          # Testbench for simulation
 │
-├── waveform
-│   └── uart_waveform.png # Simulation waveform screenshot
+├── sim
+│   └── waveform
+│       ├── uart_tx_waveform1.png
+│       └── uart_tx_waveform2.png
 │
 ├── README.md
 └── .gitignore
@@ -27,113 +107,73 @@ uart-verilog
 
 ---
 
-# UART Frame Format
+## Simulation
 
-The UART transmitter sends data in the following format:
-
-```
-| Start |  Data[0] ... Data[7] | Stop |
-|   0   |     8 data bits      |  1   |
-```
-
-Explanation:
-
-* **Idle line** : logic `1`
-* **Start bit** : logic `0`
-* **Data bits** : transmitted **LSB first**
-* **Stop bit** : logic `1`
-
-Example transmission for data **0x41 (ASCII 'A')**:
+### Compile the design
 
 ```
-Start  Data bits (LSB → MSB)     Stop
-  0      1 0 0 0 0 0 1 0          1
+iverilog -o uart_sim src/uart_tx.v tb/uart_tb.v
 ```
 
----
-
-# Design Overview
-
-The transmitter operates using a **Finite State Machine (FSM)**.
-
-States:
+### Run simulation
 
 ```
-IDLE
-  ↓
-START
-  ↓
-DATA (8 bits)
-  ↓
-STOP
-  ↓
-IDLE
+vvp uart_sim
 ```
 
-Signal description:
-
-| Signal    | Description                          |
-| --------- | ------------------------------------ |
-| clk       | System clock                         |
-| start     | Trigger signal to start transmission |
-| data[7:0] | Input data to transmit               |
-| tx        | Serial output line                   |
-| busy      | Indicates transmission in progress   |
-
----
-
-# Simulation
-
-Simulation is performed using **Icarus Verilog** and **GTKWave**.
-
-Compile:
+This generates the waveform file:
 
 ```
-iverilog -o uart_tb tb/uart_tb.v src/uart_tx.v
+uart_tx.vcd
 ```
 
-Run simulation:
+### View waveform
 
 ```
-vvp uart_tb
-```
-
-Open waveform:
-
-```
-gtkwave uart.vcd
+gtkwave uart_tx.vcd
 ```
 
 ---
 
-# Simulation Result
+## Simulation Waveform
 
-The waveform below shows the UART transmission of data **0x41**.
+Example waveform of UART transmission:
 
-* Start bit
-* 8 data bits (LSB first)
-* Stop bit
+![UART waveform](sim/waveform/uart_tx_waveform1.png)
 
-![UART Waveform](waveform/uart_waveform.png)
+The waveform shows:
 
----
-
-# Tools Used
-
-* Verilog HDL
-* Icarus Verilog
-* GTKWave
-* Git & GitHub
+* Idle line (`1`)
+* Start bit (`0`)
+* Data bits transmitted LSB first
+* Stop bit (`1`)
 
 ---
 
-# Author
+## Tools Used
 
-Ho Minh Thao
-Electronics and Telecommunications Engineering Student
+* **Verilog HDL**
+* **Icarus Verilog** – simulation
+* **GTKWave** – waveform visualization
+* **Git & GitHub** – version control
 
 ---
 
-# License
+## Possible Improvements
 
-This project is open-source and available for learning and educational purposes.
+Future extensions of this project may include:
+
+* UART Receiver (`uart_rx.v`)
+* Full UART controller (TX + RX)
+* Configurable baud rate generator
+* Loopback testing system
+* FPGA implementation
+
+---
+
+## Author
+
+**Ho Minh Thao**
+
+Student – Electronic and Telecommunication Engineering
+Interested in **Digital Design, RTL Design, and VLSI Systems**
