@@ -1,69 +1,143 @@
-module uart_tx(
-    input clk,
-    input start,
-    input [7:0] data,
-    output reg tx,
-    output reg busy
+module uart_tx
+#(
+    parameter CLKS_PER_BIT = 87
+)
+(
+    input        i_Clock,
+    input        i_Rst,
+    input        i_Tx_DV,
+    input  [7:0] i_Tx_Byte,
+
+    output reg o_Tx_Active,
+    output reg o_Tx_Serial,
+    output reg o_Tx_Done
 );
 
-// FSM states
-parameter IDLE  = 2'b00;
-parameter START = 2'b01;
-parameter DATA  = 2'b10;
-parameter STOP  = 2'b11;
+localparam IDLE         = 3'b000;
+localparam START_BIT    = 3'b001;
+localparam DATA_BITS    = 3'b010;
+localparam STOP_BIT     = 3'b011;
+localparam CLEANUP      = 3'b100;
 
-reg [1:0] state;
-reg [2:0] bit_index;
-reg [7:0] shift_reg;
+reg [2:0] r_SM_Main;
+reg [15:0] r_Clock_Count;
+reg [2:0] r_Bit_Index;
+reg [7:0] r_Tx_Data;
 
-// initialization (for simulation)
-initial begin
-    state = IDLE;
-    bit_index = 0;
-    shift_reg = 0;
-    tx = 1;      // idle line = 1
-    busy = 0;
-end
 
-always @(posedge clk) begin
+always @(posedge i_Clock or posedge i_Rst)
+begin
 
-    case(state)
+    if (i_Rst)
+    begin
+        r_SM_Main <= IDLE;
+        o_Tx_Serial <= 1'b1;
+        o_Tx_Active <= 1'b0;
+        o_Tx_Done <= 1'b0;
+        r_Clock_Count <= 0;
+        r_Bit_Index <= 0;
+    end
 
-        // ---------------- IDLE ----------------
-        IDLE: begin
-            tx <= 1;
-            busy <= 0;
+    else
+    begin
 
-            if(start) begin
-                shift_reg <= data;
-                bit_index <= 0;
-                busy <= 1;
-                state <= START;
+        case (r_SM_Main)
+
+        IDLE :
+        begin
+            o_Tx_Serial <= 1'b1;
+            o_Tx_Done <= 1'b0;
+            r_Clock_Count <= 0;
+            r_Bit_Index <= 0;
+
+            if (i_Tx_DV == 1'b1)
+            begin
+                o_Tx_Active <= 1'b1;
+                r_Tx_Data <= i_Tx_Byte;
+                r_SM_Main <= START_BIT;
+            end
+            else
+            begin
+                r_SM_Main <= IDLE;
             end
         end
 
-        // ---------------- START BIT ----------------
-        START: begin
-            tx <= 0;      // start bit
-            state <= DATA;
+
+        START_BIT :
+        begin
+            o_Tx_Serial <= 1'b0;
+
+            if (r_Clock_Count < CLKS_PER_BIT-1)
+            begin
+                r_Clock_Count <= r_Clock_Count + 1;
+                r_SM_Main <= START_BIT;
+            end
+            else
+            begin
+                r_Clock_Count <= 0;
+                r_SM_Main <= DATA_BITS;
+            end
         end
 
-        // ---------------- DATA BITS ----------------
-        DATA: begin
-            tx <= shift_reg[bit_index];  // send LSB first
-            bit_index <= bit_index + 1;
 
-            if(bit_index == 7)
-                state <= STOP;
+        DATA_BITS :
+        begin
+            o_Tx_Serial <= r_Tx_Data[r_Bit_Index];
+
+            if (r_Clock_Count < CLKS_PER_BIT-1)
+            begin
+                r_Clock_Count <= r_Clock_Count + 1;
+                r_SM_Main <= DATA_BITS;
+            end
+            else
+            begin
+                r_Clock_Count <= 0;
+
+                if (r_Bit_Index < 7)
+                begin
+                    r_Bit_Index <= r_Bit_Index + 1;
+                    r_SM_Main <= DATA_BITS;
+                end
+                else
+                begin
+                    r_Bit_Index <= 0;
+                    r_SM_Main <= STOP_BIT;
+                end
+            end
         end
 
-        // ---------------- STOP BIT ----------------
-        STOP: begin
-            tx <= 1;      // stop bit
-            state <= IDLE;
+
+        STOP_BIT :
+        begin
+            o_Tx_Serial <= 1'b1;
+
+            if (r_Clock_Count < CLKS_PER_BIT-1)
+            begin
+                r_Clock_Count <= r_Clock_Count + 1;
+                r_SM_Main <= STOP_BIT;
+            end
+            else
+            begin
+                o_Tx_Done <= 1'b1;
+                r_Clock_Count <= 0;
+                r_SM_Main <= CLEANUP;
+                o_Tx_Active <= 1'b0;
+            end
         end
 
-    endcase
+
+        CLEANUP :
+        begin
+            o_Tx_Done <= 1'b1;
+            r_SM_Main <= IDLE;
+        end
+
+        default :
+            r_SM_Main <= IDLE;
+
+        endcase
+
+    end
 
 end
 
