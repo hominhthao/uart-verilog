@@ -137,10 +137,13 @@ gtkwave uart_tx.vcd
 
 ## Simulation Waveform
 
-Example waveform of UART transmission:
+### Zoomed-out view (full UART frame)
 
-![UART waveform](sim/waveform/uart_tx_waveform1.png)
+![UART waveform full](sim/waveform/uart_tx_waveform1.png)
 
+### Zoomed-in view (bit timing)
+
+![UART waveform zoom](sim/waveform/uart_tx_waveform2.png)
 The waveform shows:
 
 * Idle line (`1`)
