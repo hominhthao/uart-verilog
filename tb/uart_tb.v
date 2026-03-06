@@ -46,7 +46,7 @@ begin
 
     wait(w_Tx_Done == 1);
 
-    #1000;
+    #20000;
 
     $finish;
 
